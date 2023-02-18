@@ -5,32 +5,6 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JSON Data Table</title>
-    <style>
-
-        /* Error Messages Styling */
-
-        .table-err-msg {
-            max-width: 800px;
-            padding: 100px 4%;
-            color: red; 
-            text-align: center; 
-            font-size: 1.25rem;
-            font-weight: 700;
-            line-height: 1.75rem;
-            height: 100%; 
-            display: flex; 
-            flex-direction: column;
-            margin: 0 auto;
-            align-items: center; 
-            justify-content: center;
-        }
-        .table-err-msg span {
-            width: 100%;
-            margin-bottom: 1.5rem;
-            font-size: 2.25rem;
-            line-height: 3rem;
-        }
-    </style>
     <?php 
 
         // Request Params.  Get Required Url Parameter And Optional Headers Parameter
@@ -39,39 +13,126 @@
         $uri_components = parse_url($uri);
         parse_str($uri_components['query'], $params);
         $url = $params['url'];
+        $key = $params['key'];
         $headers = $params['headers'];
+
+        // Error Handling Function
+
+        function throw_err($msg) {
+
+            // Error Message Styling
+
+            echo '
+                <style>    
+                    body {
+                        min-height: 100vh;
+                        min-width: 100vw;
+                        display: flex;
+                        margin: 0;
+                    }
+                    .table-err-msg {
+                        max-width: 800px;
+                        padding: 100px 4%;
+                        color: red; 
+                        text-align: center; 
+                        font-size: 1.75rem;
+                        font-weight: 700;
+                        line-height: 2.25rem;
+                        height: 100%; 
+                        display: flex; 
+                        flex-direction: column;
+                        margin: auto;
+                        align-items: center; 
+                        justify-content: center;
+                    }
+                    .table-err-msg span {
+                        width: 100%;
+                        margin-bottom: 1.5rem;
+                        font-size: 2.5rem;
+                        line-height: 3.25rem;
+                    }
+                </style>
+            ';
+
+            // Error Message Output
+
+            exit('
+                </head>
+                <body>
+                    <div class="table-err-msg">
+                        <span>Error</span>'. $msg . '
+                    </div>
+                </body>
+            ');
+        }
 
         // If Url Parameter Not Found, Throw Error
 
         if (!$url) { 
-            exit('
-                <div class="table-err-msg">
-                    <span>Error</span> A url parameter must be provided with url to get data from.
-                </div>
-            ');
+            throw_err('A url parameter must be provided with url to get data from.');
         }
 
-        // Get Data From Url
+        // Set Headers Data If Header Data Was Passed In For HTTP Get Request
 
-        $json = @file_get_contents($url);
+        $context = null;
+
+        $json = null;
+
+        if ($headers) {
+
+            // Set Header Data And Make HTTP Get Request
+
+            $opts = [
+                'http' => [
+                    'method' => 'GET',
+                    'header' => $headers
+                ]
+            ];
+
+            $context = stream_context_create($opts);
+
+            $json = @file_get_contents($url, false, $context);
+
+        } else {
+
+            // Make HTTP Get Request Without Header Data
+
+            $json = @file_get_contents($url);
+        }
 
         // If HTTP Data Fails, Throw Error
 
-        if ($json === false) {
-            $err = error_get_last();
-            exit('
-                <div class="table-err-msg">
-                    <span>Error Loading Table Data.</span> '. error_get_last()['message'] .'.
-                </div>
-            ');
+        if (!$json || $json === false) {
+            throw_err('Data could not be loaded from the url parameter provided.  Please ensure that the url parameter is correct and your internet connection is working.');
         }
 
         $data = json_decode($json, true);
 
-        // Remove Keys By Name (Optional)
+        // If Key Parameter Was Passed In The Event The Data Is Embedded Inside An Object Key , Update $data To Put The Nested Data In The Root
+
+        if ($key) {
+
+            if (is_numeric($key[0])) {
+                throw_err('The key parameter cannot start with a number.');
+            }
+
+            $data = $data[$key];
+
+            // Error Handler If An Array Was Not Selected Due To An Invalid Key Parameter
+
+            if (!is_array($data)) {
+                throw_err('The key parameter provided did not return an array. Please ensure an array is embedded inside key parameter provided.');
+            }
+        }
+
+        if (!is_array($data)) {
+            throw_err('The url parameter provided did not return an array.  Please check the url parameter provided.');
+        }
+
+        // Remove Keys By Name (Optional) To Make Number Of Keys Even If Need Be
 
         foreach($data as $index => $row) {
-            unset($data[$index]['albumId']);
+            unset($data[$index]['userId']);
         }
 
         // Get Keys
@@ -264,6 +325,7 @@
 
                 #'. $table_root_id .'-modal .modal-container {
                     max-width: 48rem;
+                    min-width: 256px;
                     background: white;
                     z-index: 2;
                     margin: 6.25rem 4%;
@@ -288,6 +350,9 @@
                 }
                 #'. $table_root_id .'-modal .modal-close-button {
                     font-size: 24px;
+                    font-family: "Roboto";
+                    font-weight: 700;
+                    color: red;
                     position: absolute;
                     top: 0;
                     left: 100%;
@@ -388,12 +453,18 @@
             </style>
         '; 
 
-        // Limit Number Of Characters Output String
+        // Limit Number Of Characters Output String. Adds ... To End To Indicate String Was Shortened If Over 28 Charachers Long
 
         function char_length_limiter($value) {
             if (strlen($value) > 28) {
                 return substr($value, 0, 28) . '...';
             } else return $value;
+        }
+
+        // HTML Special Chars To Prevent XSS Attack
+
+        function sc($value) {
+            return htmlspecialchars($value);
         }
         
     ?>
@@ -404,8 +475,8 @@
             <?php 
                 foreach($column_keys as $column) {
                     echo '
-                        <div class="heading-cell-wrapper" data-headcontainer="true" title="'. ucfirst($column) .'">
-                            <h4 data-heading="true" data-order="descending" data-column="'.$column.'">'. ucfirst($column) .'</h4>
+                        <div class="heading-cell-wrapper" data-headcontainer="true" title="'. ucfirst(sc($column)) .'">
+                            <h4 data-heading="true" data-order="descending" data-column="'. sc($column) .'">'. ucfirst(sc($column)) .'</h4>
                             <svg version="1.0" xmlns="http://www.w3.org/2000/svg" data-hideonidle="true" data-lightboxarrowdirection="right" data-lightboxarrow="true" width="100.000000pt" height="100.000000pt" viewBox="0 0 100.000000 100.000000" preserveAspectRatio="xMidYMid meet">
                                 <g data-hideonidle="true" transform="translate(100.000000,100.000000) scale(0.100000,-0.100000) rotate(90.000)" fill="#ffffff" stroke="none">
                                 <path data-hideonidle="true" d="M415 720 l-220 -220 223 -222 222 -223 72 73 73 72 -148 148 -147 147 145 145 c80 80 145 149 145 155 0 0 -140 145 -140 145 0 0 -104 -99 -225 -220z"></path>
@@ -422,9 +493,9 @@
                         <?php
                             foreach(array_keys($row) as $key) {
                                 echo '
-                                    <div class="mobile-cell" data-cellcontainer="true" data-column="'. $key .'" title="'. $row[$key] .'">
-                                        <span data-heading="true" data-order="descending" data-column="'. $key .'">'. ucfirst($key) .': </span>
-                                        <p>'. char_length_limiter($row[$key]) .'</p>
+                                    <div class="mobile-cell" data-cellcontainer="true" data-column="'. sc($key) .'" title="'. sc($row[$key]) .'">
+                                        <span data-heading="true" data-order="descending" data-column="'. sc($key) .'">'. ucfirst(sc($key)) .': </span>
+                                        <p>'. char_length_limiter(sc($row[$key])) .'</p>
                                     </div>
                                 ';
                             }
@@ -582,4 +653,3 @@
     </script>
 </body>
 </html>
-

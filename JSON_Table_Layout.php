@@ -14,6 +14,7 @@
         parse_str($uri_components['query'], $params);
         $url = $params['url'];
         $key = $params['key'];
+        $remove = $params['remove'];
         $headers = $params['headers'];
 
         // Error Handling Function
@@ -63,6 +64,7 @@
                         <span>Error</span>'. $msg . '
                     </div>
                 </body>
+                </html>
             ');
         }
 
@@ -132,7 +134,7 @@
         // Remove Keys By Name (Optional) To Make Number Of Keys Even If Need Be
 
         foreach($data as $index => $row) {
-            unset($data[$index]['userId']);
+            unset($data[$index][$remove]);
         }
 
         // Get Keys
@@ -155,18 +157,12 @@
             }
         }
 
-        // If Total Keys Is Not Divisible By Two, Set $keys_match To False
-
-        if ($columns_qt % 2 !== 0) {
-            $keys_match = false;
-        }
-
         // If $keys_match Is False, Throw Error
 
         if (!$keys_match) {
             exit('
                 <div class="table-err-msg">
-                    Number Of Columns(Keys) Must Be An Even Number And Be Consistent For Each Row(Object) Entry.
+                    Number Of Columns(Keys) Must Be Consistent For Each Row(Object) Entry.
                 </div>
             ');
         }
@@ -288,7 +284,7 @@
                     margin: 0;
                     display: flex;
                     flex-direction: column;
-                    justify-content: center;
+                    justify-content: space-between;
                     gap: 0.5rem;
                 }
 
@@ -365,7 +361,7 @@
                 }
                 @media(max-width: '. ($columns_qt * 18) .'rem) {
                     #'. $table_root_id .'  .table-row {
-                        grid-template-columns: repeat('. $columns_qt / 2 .', 1fr);
+                        grid-template-columns: repeat('. ($columns_qt % 2 === 0 ? $columns_qt / 2 : floor($columns_qt / 1.5)) .', 1fr);
                         grid-row-gap: 1.5rem !important;
                         padding: 1.5rem 4%;
                     }
@@ -394,7 +390,7 @@
                 }
                 @media(max-width: '. ($columns_qt * 12) .'rem) {
                     #'. $table_root_id .'  .table-row {
-                        grid-template-columns: repeat('. ($columns_qt % 4 === 0 ? $columns_qt / 4 : $columns_qt / 3) .', 1fr); 
+                        grid-template-columns: repeat('. ($columns_qt % 2 === 0 ? $columns_qt / 2 : $columns_qt / 3) .', 1fr); 
                         grid-row-gap: 1.5rem !important;
                         padding: 1.5rem 4%;
                     }
@@ -421,7 +417,36 @@
                         gap: 0;
                     }
                 }
-                @media(max-width: '. ($columns_qt * 6.5) .'rem) {
+                @media(max-width: '. ($columns_qt * 10) .'rem) {
+                    #'. $table_root_id .'  .table-row {
+                        grid-template-columns: repeat(2, 1fr); 
+                        grid-row-gap: 1.5rem !important;
+                        padding: 1.5rem 4%;
+                    }
+                    #'. $table_root_id .'  .mobile-cell span {
+                        display: block !important;
+                        font-weight: 700;
+                        font-size: 1.25rem;
+                        text-decoration: underline;
+                    }
+                    #'. $table_root_id .'  .table-heading {
+                        padding: 1rem 4% !important;
+                        position: static !important;
+                    }
+                    #'. $table_root_id .'  .cells-wrapper {
+                        gap: 2rem;
+                        padding: 1rem;
+                        flex-wrap: nowrap;
+                        align-items: start;
+                    }
+                    #'. $table_root_id .'  .cells-wrapper > * {
+                        margin: 0;
+                    }
+                    #'. $table_root_id .'  .table-row {
+                        gap: 0;
+                    }
+                }
+                @media(max-width: '. $columns_qt * 5.5 .'rem) {
                     #'. $table_root_id .'  .table-row {
                         grid-template-columns: 1fr;
                         grid-row-gap: 1.5rem !important;
@@ -464,6 +489,13 @@
         // HTML Special Chars To Prevent XSS Attack
 
         function sc($value) {
+
+            // Check If Variable Is Array.  If So, Convert To String
+
+            if (is_array($value)) {
+                $value = implode(', ', $value); 
+            }
+
             return htmlspecialchars($value);
         }
         
@@ -471,7 +503,7 @@
 </head>
 <body>
     <section id="<?php echo $table_root_id ?>">
-        <div class="table-row table-heading">
+        <div data-tableheadings="true" class="table-row table-heading">
             <?php 
                 foreach($column_keys as $column) {
                     echo '

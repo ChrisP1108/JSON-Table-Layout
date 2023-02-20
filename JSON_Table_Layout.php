@@ -7,16 +7,6 @@
     <title>JSON Data Table</title>
     <?php 
 
-        // Request Params.  Get Required Url Parameter And Optional Headers Parameter
-
-        $uri = $_SERVER['REQUEST_URI'];
-        $uri_components = parse_url($uri);
-        parse_str($uri_components['query'], $params);
-        $url = $params['url'];
-        $key = $params['key'];
-        $remove = $params['remove'];
-        $headers = $params['headers'];
-
         // Error Handling Function
 
         function throw_err($msg) {
@@ -67,6 +57,20 @@
                 </html>
             ');
         }
+
+        // Request Params.  Get Required Url Parameter And Optional Headers Parameter
+
+        $uri = $_SERVER['REQUEST_URI'];
+        $uri_components = parse_url($uri);
+        $path = $uri_components['query'] ?? NULL;
+
+        if ($path) {
+            parse_str($path, $params);
+            $url = $params['url'] ?? NULL;
+            $key = $params['key'] ?? NULL;
+            $remove = $params['remove'] ?? NULL;
+            $headers = $params['headers'] ?? NULL;
+        } else throw_err('A Url Parameter Must Be Provided');
 
         // If Url Parameter Not Found, Throw Error
 
@@ -131,15 +135,27 @@
             throw_err('The url parameter provided did not return an array.  Please check the url parameter provided.');
         }
 
-        // Remove Keys By Name (Optional) To Make Number Of Keys Even If Need Be
+        // Remove Keys By Name (Optional) To Make Number Of Keys Even If Need Be If Remove Parameter Is Present
 
-        foreach($data as $index => $row) {
-            unset($data[$index][$remove]);
+        if ($remove) {
+            $remove_keys = explode(',', $remove);
+            foreach($data as $index => $row) {
+                foreach($remove_keys as $key) {
+                    unset($data[$index][$key]);
+                }
+            }
         }
 
         // Get Keys
 
         $column_keys = array_keys($data[0]);
+
+        // Check That Keys Contains An Id. Otherwise Throw Error
+
+        if (!in_array('id', $column_keys)) {
+            throw_err('Data must contain an "id" column(key).');
+        }
+
         $columns_qt = count($column_keys);
 
         $keys_match = true;
@@ -446,7 +462,7 @@
                         gap: 0;
                     }
                 }
-                @media(max-width: '. $columns_qt * 5.5 .'rem) {
+                @media(max-width: 36rem) {
                     #'. $table_root_id .'  .table-row {
                         grid-template-columns: 1fr;
                         grid-row-gap: 1.5rem !important;
@@ -495,8 +511,9 @@
             if (is_array($value)) {
                 $value = implode(', ', $value); 
             }
-
-            return htmlspecialchars($value);
+            if (is_bool($value)) {
+                return strval($value) === '1' ? 'yes' : 'no';
+            } else return htmlspecialchars($value);
         }
         
     ?>
